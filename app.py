@@ -6,10 +6,10 @@ import json
 # ページ設定
 st.set_page_config(page_title="接続検証", layout="wide")
 
-st.title("💡 ステップ9：完全マニュアル認証（最終解決策）")
+st.title("💡 ステップ10：完全手動・接続オブジェクト構築")
 
-# --- 0. 秘密鍵の定義（あなたが提示した最新の鍵） ---
-# 文字列の結合により、Base64の整合性と改行を完全に維持します
+# --- 0. 認証情報の定義 ---
+# 文字列結合によりBase64の整合性を完全に維持
 private_key_content = (
     "-----BEGIN PRIVATE KEY-----\n"
     "MIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQChpIcBUB3GIuOj\n"
@@ -32,7 +32,6 @@ private_key_content = (
     "-----END PRIVATE KEY-----\n"
 )
 
-# サービスアカウント情報の構築（※キー名を変更して重複エラーを回避）
 service_account_dict = {
     "type": "service_account",
     "project_id": "festive-bonsai-454509-b3",
@@ -43,27 +42,32 @@ service_account_dict = {
     "auth_uri": "https://accounts.google.com/o/oauth2/auth",
     "token_uri": "https://oauth2.googleapis.com/token",
     "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-    "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/kigennkannri%40festive-bonsai-454509-b3.iam.gserviceaccount.com"
+    "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/kigennkannri%40festive-bonsai-454509-b3.iam.gserviceaccount.com",
+    "universe_domain": "googleapis.com"
 }
 
 spreadsheet_url = "https://docs.google.com/spreadsheets/d/10SPAlhEavpSZzHr2iCgu3U_gaaW6IHWgvjNTdvSWY9A/edit"
 
 try:
-    # --- 重要：不具合の多い st.connection をバイパスする ---
-    # 空の状態でインスタンスを作成
-    conn = GSheetsConnection(connection_name="gsheets")
+    # --- 重要：不具合の多い st.connection をバイパス ---
+    # 1. まず「空」の状態の接続クラスを作成（__init__を飛ばすためのハック）
+    conn = GSheetsConnection.__new__(GSheetsConnection)
     
-    # 【解決策】内部変数を「辞書アンパック」せずに直接上書きします
-    # これにより TypeError: got an unexpected keyword argument 'type' を物理的に回避します
+    # 2. 必要な内部変数を直接セット
+    # これにより初期化時の自動認証（MalformedError）を回避します
+    conn._connection_name = "gsheets"
+    conn._kwargs = {"spreadsheet": spreadsheet_url}
+    
+    # 3. 認証情報を直接セット（これが最重要）
+    # ライブラリの内部変数に直接鍵を叩き込みます
     conn._service_account_info = service_account_dict
     
-    # データの読み込み試行
-    # service_account引数を渡さず、セットした内部情報を自動で使わせます
+    # 4. データの読み込み試行
     df = conn.read(spreadsheet=spreadsheet_url, ttl=0)
     
-    st.success("✅ 内部変数の直接注入により、全ての引数エラーを回避して接続に成功しました！")
+    st.success("✅ 手動オブジェクト構築により接続に成功しました！")
     st.dataframe(df.head())
 
 except Exception as e:
-    st.error("❌ 最終解決策でも失敗しました")
+    st.error("❌ この究極の手段でも失敗しました")
     st.exception(e)
