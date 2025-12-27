@@ -1,4 +1,4 @@
-import streamlit as st
+iimport streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 import json
@@ -9,22 +9,18 @@ from datetime import date, datetime, timedelta
 st.set_page_config(page_title="期限管理システム", layout="wide")
 
 # --- 0. スプレッドシート接続設定 ---
-# アップロードしたJSONファイルのパスを指定します
-json_path = "festive-bonsai-454509-b3-a01f50e471bd.json"
+# アップロードしたJSONファイルの「ファイル名」をそのまま指定します
+json_file_path = "festive-bonsai-454509-b3-a01f50e471bd.json"
 
-# JSONファイルを直接読み込みます
-with open(json_path, "r") as f:
-    creds_info = json.load(f)
-
-# スプレッドシートのURL（ここだけはSecretsから取るか、直接書き換えてください）
+# スプレッドシートのURL
 spreadsheet_url = "https://docs.google.com/spreadsheets/d/10SPAlhEavpSZzHr2iCgu3U_gaaW6IHWgvjNTdvSWY9A/edit"
 
-# 接続（JSONから読み込んだ辞書を service_account に渡します）
+# 【最重要】service_account 引数には「辞書」ではなく「ファイルパス」を渡します
 conn = st.connection(
     "gsheets",
     type=GSheetsConnection,
     spreadsheet=spreadsheet_url,
-    service_account=creds_info
+    service_account=json_file_path
 )
 
 def load_data(sheet_name):
@@ -77,6 +73,7 @@ if not st.session_state.logged_in:
             st.rerun()
 else:
     st.write("ログイン成功！システムを構築可能です。")
+
 
 
 
