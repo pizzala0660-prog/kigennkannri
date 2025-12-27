@@ -1,18 +1,48 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
+import pandas as pd
+from datetime import date, datetime, timedelta
+
+# ページ設定
+st.set_page_config(page_title="期限管理システム", layout="wide")
 
 # --- 0. スプレッドシート接続設定 ---
+# Secrets(人力修正版)を自動で読み込む設定
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# 2. 文字列としての "\n" を、本物の改行に直す（これが重要！）
-if "private_key" in creds_dict:
-    creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+def load_data(sheet_name):
+    try:
+        # ttl=0 で常に最新のスプレッドシートを読み込む
+        return conn.read(worksheet=sheet_name, ttl=0)
+    except Exception:
+        return pd.DataFrame()
 
-# 3. 直した設定を使って接続する
-conn = st.connection("gsheets", type=GSheetsConnection, **creds_dict)
+def save_data(df, sheet_name):
+    try:
+        conn.update(worksheet=sheet_name, data=df)
+        st.cache_data.clear() 
+    except Exception as e:
+        st.error(f"保存エラー: {e}")
 
-# --- 以下、テスト用の表示 ---
-st.title("期限管理システム - 接続テスト")
+# 初期シート作成（データが空の場合にヘッダーを作成）
+def init_spreadsheet():
+    sheets = {
+        "expiry_records": ["id", "shop_id", "category", "item_name", "expiry_date", "input_date"],
+        "item_master": ["id", "category", "item_name", "input_type"],
+        "shop_master": ["id", "branch_id", "shop_id", "shop_name"],
+        "branch_master": ["id", "branch_id", "branch_name"],
+        "manager_shop_link": ["branch_id", "shop_id"]
+    }
+    for s, cols in sheets.items():
+        df = load_data(s)
+        if df is None or df.empty or len(df.columns) == 0:
+            save_data(pd.DataFrame(columns=cols), s)
+
+# 接続が確立してから実行
+init_spreadsheet()
+
+# --- 1. ログイン画面 ---
+st.title("期限管理システム")
 
 try:
     # どこか一つのシートを読み込んでみる
@@ -33,6 +63,7 @@ if not st.session_state.logged_in:
             st.rerun()
 else:
     st.write("ログイン成功！システムを構築可能です。")
+
 
 
 
