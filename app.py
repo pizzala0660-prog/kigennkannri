@@ -22,7 +22,7 @@ def save_data(df, sheet_name):
         st.error(f"保存エラー: {e}")
 
 # 初期シート作成
-def init_spreadsheet():
+#defdef def init_spre():
     sheets = {
         "expiry_records": ["id", "shop_id", "category", "item_name", "expiry_date", "input_date"],
         "item_master": ["id", "category", "item_name", "input_type"],
@@ -40,3 +40,4 @@ init_spreadsheet()
 # --- ログイン画面 ---
 st.title("期限管理システム")
 # (以下、以前と同じログイン処理を続けてください)
+
