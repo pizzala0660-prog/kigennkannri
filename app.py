@@ -7,25 +7,39 @@ from datetime import date, datetime, timedelta
 st.set_page_config(page_title="期限管理システム", layout="wide")
 
 # --- 0. スプレッドシート接続設定 ---
-# Secretsに保存した新しい鍵を自動で読み込む設定です
-conn = st.connection("gsheets", type=GSheetsConnection)
+# Secretsから取得した情報を一度辞書(creds)にコピーします
+creds = dict(st.secrets["connections"]["gsheets"])
+
+# 【重要】秘密鍵のゴミ掃除
+# コピペ時に混じった「スペース」や「改行の化け」をプログラムで強制的に直します
+if "private_key" in creds:
+    # 1. 誤って混じった半角・全角スペースをすべて消去
+    creds["private_key"] = creds["private_key"].replace(" ", "").replace("　", "")
+    # 2. 文字列としての「\n」を、本物の改行コードに変換
+    creds["private_key"] = creds["private_key"].replace("\\n", "\n")
+    # 3. 繋がってしまったヘッダー部分などを正規の形に復元（保険的処理）
+    if "-----BEGINPRIVATEKEY-----" in creds["private_key"]:
+        creds["private_key"] = creds["private_key"].replace("-----BEGINPRIVATEKEY-----", "-----BEGIN PRIVATE KEY-----\n")
+    if "-----ENDPRIVATEKEY-----" in creds["private_key"]:
+        creds["private_key"] = creds["private_key"].replace("-----ENDPRIVATEKEY-----", "\n-----END PRIVATE KEY-----")
+
+# 掃除した後のcredsを使って接続
+conn = st.connection("gsheets", type=GSheetsConnection, **creds)
 
 def load_data(sheet_name):
     try:
-        # スプレッドシートからデータを読み込みます
         return conn.read(worksheet=sheet_name, ttl=0)
     except Exception:
         return pd.DataFrame()
 
 def save_data(df, sheet_name):
     try:
-        # スプレッドシートへデータを保存し、キャッシュをクリアします
         conn.update(worksheet=sheet_name, data=df)
         st.cache_data.clear() 
     except Exception as e:
         st.error(f"保存エラー: {e}")
 
-# 初期シート作成（データが空の場合に表の見出しを作成）
+# 初期シート作成
 def init_spreadsheet():
     sheets = {
         "expiry_records": ["id", "shop_id", "category", "item_name", "expiry_date", "input_date"],
@@ -39,7 +53,6 @@ def init_spreadsheet():
         if df is None or df.empty or len(df.columns) == 0:
             save_data(pd.DataFrame(columns=cols), s)
 
-# 接続を確立し、初期設定を実行
 init_spreadsheet()
 # --- 1. ログイン画面 ---
 st.title("期限管理システム")
@@ -63,6 +76,7 @@ if not st.session_state.logged_in:
             st.rerun()
 else:
     st.write("ログイン成功！システムを構築可能です。")
+
 
 
 
