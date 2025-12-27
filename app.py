@@ -1,43 +1,46 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
-import json
+from datetime import date, datetime, timedelta
 
 # ページ設定
 st.set_page_config(page_title="期限管理システム", layout="wide")
 
 # --- 0. スプレッドシート接続設定 ---
-# Secretsに保存した「1行のJSON」を読み込みます
-json_str = st.secrets["connections"]["gsheets"]["json_base64"]
+# Secretsに保存した新しい鍵を自動で読み込む設定です
+conn = st.connection("gsheets", type=GSheetsConnection)
 
-# 文字列をPythonの辞書形式に変換します
-creds_dict = json.loads(json_str)
-
-# 秘密鍵（private_key）の中にある「\n」という文字を、本物の改行コードに変換します
-if "private_key" in creds_dict:
-    creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
-
-# 修理した設定を使って接続を確立します
-conn = st.connection("gsheets", type=GSheetsConnection, **creds_dict)
-
-# --- 1. データ読み込み・保存用関数 ---
 def load_data(sheet_name):
     try:
+        # スプレッドシートからデータを読み込みます
         return conn.read(worksheet=sheet_name, ttl=0)
     except Exception:
         return pd.DataFrame()
 
 def save_data(df, sheet_name):
     try:
+        # スプレッドシートへデータを保存し、キャッシュをクリアします
         conn.update(worksheet=sheet_name, data=df)
         st.cache_data.clear() 
     except Exception as e:
         st.error(f"保存エラー: {e}")
 
-# (以下、以前の init_spreadsheet() やログイン処理へ続く)
-# 接続が確立してから実行
-init_spreadsheet()
+# 初期シート作成（データが空の場合に表の見出しを作成）
+def init_spreadsheet():
+    sheets = {
+        "expiry_records": ["id", "shop_id", "category", "item_name", "expiry_date", "input_date"],
+        "item_master": ["id", "category", "item_name", "input_type"],
+        "shop_master": ["id", "branch_id", "shop_id", "shop_name"],
+        "branch_master": ["id", "branch_id", "branch_name"],
+        "manager_shop_link": ["branch_id", "shop_id"]
+    }
+    for s, cols in sheets.items():
+        df = load_data(s)
+        if df is None or df.empty or len(df.columns) == 0:
+            save_data(pd.DataFrame(columns=cols), s)
 
+# 接続を確立し、初期設定を実行
+init_spreadsheet()
 # --- 1. ログイン画面 ---
 st.title("期限管理システム")
 
@@ -60,6 +63,7 @@ if not st.session_state.logged_in:
             st.rerun()
 else:
     st.write("ログイン成功！システムを構築可能です。")
+
 
 
 
