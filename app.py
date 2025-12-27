@@ -6,9 +6,17 @@ import pandas as pd
 st.set_page_config(page_title="接続テスト", layout="wide")
 
 # --- 0. スプレッドシート接続設定 ---
-conn = st.connection("gsheets", type=GSheetsConnection)
+# 1. Secretsから設定を読み込む
+creds_dict = dict(st.secrets["connections"]["gsheets"])
 
-# テスト用のデータ読み込み（エラーが出なければ接続成功）
+# 2. 文字列としての "\n" を、本物の改行に直す（これが重要！）
+if "private_key" in creds_dict:
+    creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+
+# 3. 直した設定を使って接続する
+conn = st.connection("gsheets", type=GSheetsConnection, **creds_dict)
+
+# --- 以下、テスト用の表示 ---
 st.title("期限管理システム - 接続テスト")
 
 try:
@@ -30,3 +38,4 @@ if not st.session_state.logged_in:
             st.rerun()
 else:
     st.write("ログイン成功！システムを構築可能です。")
+
