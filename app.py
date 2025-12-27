@@ -1,33 +1,38 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
+import json
 
-# ページ設定
-st.set_page_config(page_title="接続検証", layout="wide")
+st.title("💡 ステップ2：書き込み権限検証")
 
-st.title("💡 ステップ1：公開読み込み検証")
-st.write("このテストでは、サービスアカウントを使わずにスプレッドシートにアクセスできるかを確認します。")
-
-# 接続先URL
+# 1. JSONファイルの読み込み
+json_path = "festive-bonsai-454509-b3-a01f50e471bd.json"
 spreadsheet_url = "https://docs.google.com/spreadsheets/d/10SPAlhEavpSZzHr2iCgu3U_gaaW6IHWgvjNTdvSWY9A/edit"
 
 try:
-    # 認証情報なしで接続を初期化
-    conn = st.connection("gsheets", type=GSheetsConnection)
+    with open(json_path, "r") as f:
+        creds_info = json.load(f)
     
-    # データの読み込み試行（url引数を使用）
-    df = conn.read(spreadsheet=spreadsheet_url, ttl=0)
+    # 2. 接続設定（辞書形式で渡す）
+    conn = st.connection(
+        "gsheets",
+        type=GSheetsConnection,
+        service_account=creds_info
+    )
+
+    # 3. テストデータの作成
+    test_df = pd.DataFrame({"検証結果": ["成功"], "日時": [pd.Timestamp.now()]})
+
+    # 4. 書き込み実行
+    # 「test_sheet」という名前のシートを作成/更新しようとします
+    conn.update(spreadsheet=spreadsheet_url, worksheet="test_sheet", data=test_df)
     
-    st.success("✅ スプレッドシートの読み込みに成功しました！")
-    st.write("スプレッドシートの内容（最初の5行）:")
-    st.dataframe(df.head())
+    st.success("✅ スプレッドシートへの書き込みに成功しました！")
+    st.write("スプレッドシートを確認してください。'test_sheet' というシートができているはずです。")
 
 except Exception as e:
-    st.error("❌ 読み込みに失敗しました")
+    st.error("❌ 書き込みに失敗しました")
     st.exception(e)
-
-st.info("これが成功したら、次は『JSONファイルを使った認証』のテストに進みます。")
-
 
 
 
