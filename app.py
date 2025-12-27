@@ -1,12 +1,10 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
-import json # これを追加
 
 # --- 0. スプレッドシート接続設定 ---
-# Secretsに貼り付けたJSONの塊を、プログラムで使える形に変換します
-conf = st.secrets["connections"]["gsheets"]
-creds = json.loads(conf["service_account"])
+# 余計な指定をせず、Streamlitの標準機能にすべて任せます
+conn = st.connection("gsheets", type=GSheetsConnection)
 
 # 接続を実行
 conn = st.connection("gsheets", type=GSheetsConnection, service_account=creds)
@@ -60,6 +58,7 @@ else:
         st.rerun()
     
     # ここにメイン機能を記述
+
 
 
 
