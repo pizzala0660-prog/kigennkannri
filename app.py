@@ -1,35 +1,29 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
+import json
+import os
 from datetime import date, datetime, timedelta
 
+# ページ設定
+st.set_page_config(page_title="期限管理システム", layout="wide")
+
 # --- 0. スプレッドシート接続設定 ---
-# Secretsから取得した情報を「修理」して認証を通します
-s = st.secrets["connections"]["gsheets"]
+# アップロードしたJSONファイルのパスを指定します
+json_path = "festive-bonsai-454509-b3-a01f50e471bd.json"
 
-# 鍵の改行コードを確実に復元
-fixed_key = s["private_key"].replace("\\n", "\n")
+# JSONファイルを直接読み込みます
+with open(json_path, "r") as f:
+    creds_info = json.load(f)
 
-# Googleが認める「サービスアカウント辞書」をコード内で強制的に再構築
-creds_info = {
-    "type": "service_account",
-    "project_id": s["project_id"],
-    "private_key_id": s["private_key_id"],
-    "private_key": fixed_key,
-    "client_email": s["client_email"],
-    "client_id": s["client_id"],
-    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-    "token_uri": "https://oauth2.googleapis.com/token",
-    "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-    "client_x509_cert_url": s["client_x509_cert_url"],
-    "universe_domain": "googleapis.com"
-}
+# スプレッドシートのURL（ここだけはSecretsから取るか、直接書き換えてください）
+spreadsheet_url = "https://docs.google.com/spreadsheets/d/10SPAlhEavpSZzHr2iCgu3U_gaaW6IHWgvjNTdvSWY9A/edit"
 
-# 接続（service_account=引数を使うことで、閲覧専用モードを回避します）
+# 接続（JSONから読み込んだ辞書を service_account に渡します）
 conn = st.connection(
-    "gsheets", 
-    type=GSheetsConnection, 
-    spreadsheet=s["spreadsheet"],
+    "gsheets",
+    type=GSheetsConnection,
+    spreadsheet=spreadsheet_url,
     service_account=creds_info
 )
 
@@ -83,6 +77,7 @@ if not st.session_state.logged_in:
             st.rerun()
 else:
     st.write("ログイン成功！システムを構築可能です。")
+
 
 
 
