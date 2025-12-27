@@ -6,9 +6,14 @@ import calendar
 import re
 import io
 
-# --- 0. スプレッドシート接続設定 ---
-st.write(st.secrets)
-conn = st.connection("gsheets", type=GSheetsConnection)
+# 秘密鍵を安全に読み込むための修正版
+import json
+
+# Secretsから設定を読み込む
+creds_dict = json.loads(st.secrets["connections"]["gsheets"]["service_account"])
+
+# 接続
+conn = st.connection("gsheets", type=GSheetsConnection, service_account=creds_dict)
 
 def load_data(sheet_name):
     try:
@@ -275,5 +280,6 @@ else:
     
     else:
         st.error("ログインIDが正しくありません。管理者に登録を確認してください。")
+
 
 
