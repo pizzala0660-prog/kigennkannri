@@ -2,12 +2,9 @@ import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 
-# ページ設定
-st.set_page_config(page_title="接続テスト", layout="wide")
-
 # --- 0. スプレッドシート接続設定 ---
-# 1. Secretsから設定を読み込む
-creds_dict = dict(st.secrets["connections"]["gsheets"])
+# 余計なことはせず、Streamlitの自動読み込み機能にすべてを任せます
+conn = st.connection("gsheets", type=GSheetsConnection)
 
 # 2. 文字列としての "\n" を、本物の改行に直す（これが重要！）
 if "private_key" in creds_dict:
@@ -38,4 +35,5 @@ if not st.session_state.logged_in:
             st.rerun()
 else:
     st.write("ログイン成功！システムを構築可能です。")
+
 
