@@ -1,18 +1,15 @@
-import streamlit as st
+mport streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
-from datetime import date, datetime, timedelta
-import calendar
-import re
-import io
-
-# ページ設定
-st.set_page_config(page_title="期限管理システム", layout="wide")
+import json # これを追加
 
 # --- 0. スプレッドシート接続設定 ---
-# 最もシンプルな接続方法に戻します
-conn = st.connection("gsheets", type=GSheetsConnection)
+# Secretsに貼り付けたJSONの塊を、プログラムで使える形に変換します
+conf = st.secrets["connections"]["gsheets"]
+creds = json.loads(conf["service_account"])
 
+# 接続を実行
+conn = st.connection("gsheets", type=GSheetsConnection, service_account=creds)
 def load_data(sheet_name):
     try:
         # ttl=0 でキャッシュを無効化し、常に最新のデータを読み込む
@@ -63,4 +60,5 @@ else:
         st.rerun()
     
     # ここにメイン機能を記述
+
 
