@@ -1,4 +1,4 @@
-mport streamlit as st
+import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 import json # これを追加
@@ -60,5 +60,6 @@ else:
         st.rerun()
     
     # ここにメイン機能を記述
+
 
 
