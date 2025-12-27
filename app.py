@@ -1,4 +1,4 @@
-iimport streamlit as st
+import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 import json
@@ -73,6 +73,7 @@ if not st.session_state.logged_in:
             st.rerun()
 else:
     st.write("ログイン成功！システムを構築可能です。")
+
 
 
 
