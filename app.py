@@ -1,35 +1,41 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
-import json
+from datetime import date, datetime, timedelta
 
 # --- 0. スプレッドシート接続設定 ---
-# 最も標準的な接続方法に戻します。
-# 認証に必要な情報はすべてStreamlitのSecrets側で完結させます。
+# ログイン画面が出ていた「標準的な接続」に戻します
 conn = st.connection("gsheets", type=GSheetsConnection)
+
+def load_data(sheet_name):
+    try:
+        # ttl=0 で常に最新データを取得
+        return conn.read(worksheet=sheet_name, ttl=0)
+    except Exception:
+        return pd.DataFrame()
+
 def save_data(df, sheet_name):
     try:
-        # スプレッドシートへデータを保存し、キャッシュをクリアします
         conn.update(worksheet=sheet_name, data=df)
         st.cache_data.clear() 
     except Exception as e:
         st.error(f"保存エラー: {e}")
 
-# 初期シート作成（データが空の場合に表の見出しを作成）
+# 初期シート作成（変数名の競合を修正しました）
 def init_spreadsheet():
-    sheets = {
+    target_sheets = {
         "expiry_records": ["id", "shop_id", "category", "item_name", "expiry_date", "input_date"],
         "item_master": ["id", "category", "item_name", "input_type"],
         "shop_master": ["id", "branch_id", "shop_id", "shop_name"],
         "branch_master": ["id", "branch_id", "branch_name"],
         "manager_shop_link": ["branch_id", "shop_id"]
     }
-    for s, cols in sheets.items():
-        df = load_data(s)
-        if df is None or df.empty or len(df.columns) == 0:
-            save_data(pd.DataFrame(columns=cols), s)
+    for s_name, cols in target_sheets.items():
+        df_check = load_data(s_name)
+        if df_check is None or df_check.empty or len(df_check.columns) == 0:
+            save_data(pd.DataFrame(columns=cols), s_name)
 
-# 接続を確立し、初期設定を実行
+# 起動時に実行
 init_spreadsheet()
 # --- 1. ログイン画面 ---
 st.title("期限管理システム")
@@ -53,6 +59,7 @@ if not st.session_state.logged_in:
             st.rerun()
 else:
     st.write("ログイン成功！システムを構築可能です。")
+
 
 
 
