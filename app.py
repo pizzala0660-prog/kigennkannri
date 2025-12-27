@@ -7,6 +7,7 @@ import re
 import io
 
 # --- 0. スプレッドシート接続設定 ---
+st.write(st.secrets)
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 def load_data(sheet_name):
@@ -274,4 +275,5 @@ else:
     
     else:
         st.error("ログインIDが正しくありません。管理者に登録を確認してください。")
+
 
