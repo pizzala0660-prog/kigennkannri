@@ -4,37 +4,9 @@ import pandas as pd
 import json
 
 # --- 0. スプレッドシート接続設定 ---
-# Secretsから取得した生データを辞書形式に変換します
-s = st.secrets["connections"]["gsheets"]
-
-# 秘密鍵（private_key）に含まれる「\\n」という文字を「本物の改行コード」に復元します
-# これにより、Googleが正しい鍵として認識できるようになります
-fixed_private_key = s["private_key"].replace("\\n", "\n")
-
-# Streamlitの内部ライブラリが「サービスアカウント」として認識するための辞書を再構築します
-service_account_info = {
-    "type": s["type"],
-    "project_id": s["project_id"],
-    "private_key_id": s["private_key_id"],
-    "private_key": fixed_private_key,
-    "client_email": s["client_email"],
-    "client_id": s["client_id"],
-    "auth_uri": s["auth_uri"],
-    "token_uri": s["token_uri"],
-    "auth_provider_x509_cert_url": s["auth_provider_x509_cert_url"],
-    "client_x509_cert_url": s["client_x509_cert_url"],
-    "universe_domain": s.get("universe_domain", "googleapis.com")
-}
-
-# 【重要】service_account引数に上記の辞書を直接渡します
-# これにより「Public Spreadsheet（公開用）」ではなく「CRUD（編集権限あり）」として接続されます
-conn = st.connection(
-    "gsheets",
-    type=GSheetsConnection,
-    spreadsheet=s["spreadsheet"],
-    service_account=service_account_info
-)
-
+# 最も標準的な接続方法に戻します。
+# 認証に必要な情報はすべてStreamlitのSecrets側で完結させます。
+conn = st.connection("gsheets", type=GSheetsConnection)
 def save_data(df, sheet_name):
     try:
         # スプレッドシートへデータを保存し、キャッシュをクリアします
@@ -81,6 +53,7 @@ if not st.session_state.logged_in:
             st.rerun()
 else:
     st.write("ログイン成功！システムを構築可能です。")
+
 
 
 
