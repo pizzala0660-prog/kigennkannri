@@ -1,42 +1,27 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
-import json
 
-st.title("💡 ステップ2：書き込み権限検証")
+# ページ設定
+st.set_page_config(page_title="接続検証", layout="wide")
 
-# 1. JSONファイルの読み込み
-json_path = "festive-bonsai-454509-b3-a01f50e471bd.json"
-spreadsheet_url = "https://docs.google.com/spreadsheets/d/10SPAlhEavpSZzHr2iCgu3U_gaaW6IHWgvjNTdvSWY9A/edit"
+st.title("💡 ステップ3：自動認識検証（フルコード）")
+st.write("Secretsの [connections.gsheets] セクションから情報を自動読み込みします。")
 
 try:
-    with open(json_path, "r") as f:
-        creds_info = json.load(f)
+    # ライブラリの標準機能に任せるため、引数は最小限にします
+    # これにより TypeError: got an unexpected keyword argument を回避します
+    conn = st.connection("gsheets", type=GSheetsConnection)
     
-    # 2. 接続設定（辞書形式で渡す）
-    conn = st.connection(
-        "gsheets",
-        type=GSheetsConnection,
-        service_account=creds_info
-    )
-
-    # 3. テストデータの作成
-    test_df = pd.DataFrame({"検証結果": ["成功"], "日時": [pd.Timestamp.now()]})
-
-    # 4. 書き込み実行
-    # 「test_sheet」という名前のシートを作成/更新しようとします
-    conn.update(spreadsheet=spreadsheet_url, worksheet="test_sheet", data=test_df)
+    # データの読み込み試行
+    # シートが空の場合は EmptyDataError になりますが、接続自体が成功していればOKです
+    df = conn.read(ttl=0)
     
-    st.success("✅ スプレッドシートへの書き込みに成功しました！")
-    st.write("スプレッドシートを確認してください。'test_sheet' というシートができているはずです。")
+    st.success("✅ スプレッドシートの接続・読み込みに成功しました！")
+    st.dataframe(df.head())
 
 except Exception as e:
-    st.error("❌ 書き込みに失敗しました")
+    st.error("❌ 接続または読み込みに失敗しました")
     st.exception(e)
 
-
-
-
-
-
-
+st.info("これが成功すれば、次は元のシステムのログイン機能を合体させます。")
