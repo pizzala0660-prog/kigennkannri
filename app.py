@@ -4,12 +4,37 @@ import pandas as pd
 from datetime import date, datetime, timedelta
 
 # --- 0. スプレッドシート接続設定 ---
-# ログイン画面が出ていた「標準的な接続」に戻します
-conn = st.connection("gsheets", type=GSheetsConnection)
+# Secretsから取得した情報を「修理」して認証を通します
+s = st.secrets["connections"]["gsheets"]
+
+# 鍵の改行コードを確実に復元
+fixed_key = s["private_key"].replace("\\n", "\n")
+
+# Googleが認める「サービスアカウント辞書」をコード内で強制的に再構築
+creds_info = {
+    "type": "service_account",
+    "project_id": s["project_id"],
+    "private_key_id": s["private_key_id"],
+    "private_key": fixed_key,
+    "client_email": s["client_email"],
+    "client_id": s["client_id"],
+    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+    "token_uri": "https://oauth2.googleapis.com/token",
+    "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+    "client_x509_cert_url": s["client_x509_cert_url"],
+    "universe_domain": "googleapis.com"
+}
+
+# 接続（service_account=引数を使うことで、閲覧専用モードを回避します）
+conn = st.connection(
+    "gsheets", 
+    type=GSheetsConnection, 
+    spreadsheet=s["spreadsheet"],
+    service_account=creds_info
+)
 
 def load_data(sheet_name):
     try:
-        # ttl=0 で常に最新データを取得
         return conn.read(worksheet=sheet_name, ttl=0)
     except Exception:
         return pd.DataFrame()
@@ -21,7 +46,7 @@ def save_data(df, sheet_name):
     except Exception as e:
         st.error(f"保存エラー: {e}")
 
-# 初期シート作成（変数名の競合を修正しました）
+# 初期シート作成
 def init_spreadsheet():
     target_sheets = {
         "expiry_records": ["id", "shop_id", "category", "item_name", "expiry_date", "input_date"],
@@ -35,7 +60,6 @@ def init_spreadsheet():
         if df_check is None or df_check.empty or len(df_check.columns) == 0:
             save_data(pd.DataFrame(columns=cols), s_name)
 
-# 起動時に実行
 init_spreadsheet()
 # --- 1. ログイン画面 ---
 st.title("期限管理システム")
@@ -59,6 +83,7 @@ if not st.session_state.logged_in:
             st.rerun()
 else:
     st.write("ログイン成功！システムを構築可能です。")
+
 
 
 
