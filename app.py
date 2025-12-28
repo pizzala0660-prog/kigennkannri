@@ -10,7 +10,6 @@ import io
 # --- 1. 接続・認証設定 ---
 @st.cache_resource
 def get_gspread_client():
-    # Streamlit Secretsから認証情報を取得
     info = dict(st.secrets["gcp_service_account"])
     scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
     creds = Credentials.from_service_account_info(info, scopes=scopes)
@@ -24,8 +23,12 @@ sheet = client.open_by_key(spreadsheet_id)
 def load_data(sheet_name):
     try:
         worksheet = sheet.worksheet(sheet_name)
-        return pd.DataFrame(worksheet.get_all_records())
-    except:
+        # get_all_values() を使い、ヘッダーの不一致を回避して自前でDF化
+        data = worksheet.get_all_values()
+        if len(data) > 1:
+            return pd.DataFrame(data[1:], columns=data[0])
+        return pd.DataFrame()
+    except Exception as e:
         return pd.DataFrame()
 
 def save_data(df, sheet_name):
@@ -42,13 +45,13 @@ def save_data(df, sheet_name):
         st.error(f"保存エラー: {e}")
         return False
 
-# --- 3. バリデーション関数 (SQLite版のロジックを継承) ---
+# バリデーション
 def validate_input(s, fmt):
     try:
         if fmt == "年月日":
             if not re.match(r"^\d{8}$", s): return False, "8桁の数字で入力してください"
             dt = datetime.strptime(s, "%Y%m%d").date()
-        else: # 年月のみ
+        else:
             if not re.match(r"^\d{6}$", s): return False, "6桁の数字で入力してください"
             y, m = int(s[:4]), int(s[4:])
             if not (1 <= m <= 12): return False, "月が不正です"
@@ -58,51 +61,52 @@ def validate_input(s, fmt):
     except:
         return False, "正しい日付を入力してください"
 
-# --- 4. 初期設定・ログイン管理 ---
+# --- 3. セッション管理 ---
 if 'logged_in' not in st.session_state:
     st.session_state.update({'logged_in': False, 'role': None, 'user_info': None})
 
-def init_system():
-    # 必要なマスタ構成
-    masters = {
-        "user_master": ["id", "password", "role", "target_id", "name"],
-        "expiry_records": ["id", "shop_id", "branch_id", "category", "item_name", "expiry_date", "input_date"],
-        "shop_master": ["shop_id", "branch_id", "shop_name"],
-        "branch_master": ["branch_id", "branch_name"],
-        "item_master": ["item_id", "category", "item_name", "input_type"]
-    }
-    for s, cols in masters.items():
-        df = load_data(s)
-        if df.empty:
-            save_data(pd.DataFrame(columns=cols), s)
-    
-    # マスターアカウント(9999)の強制確認
-    users = load_data("user_master")
-    if users.empty or "9999" not in users["id"].astype(str).values:
-        admin_data = pd.DataFrame([{"id": "9999", "password": "admin", "role": "マスター", "target_id": "ALL", "name": "最高管理者"}])
-        save_data(pd.concat([users, admin_data], ignore_index=True), "user_master")
-
-init_system()
-
 # --- ログイン画面 ---
 if not st.session_state['logged_in']:
-    st.title("🛡️ 賞味期限管理システム")
-    st.info("初期ログイン ID: 9999 / PW: admin")
-    with st.form("login"):
-        u_id = st.text_input("ID (数字4桁)", max_chars=4)
-        u_pw = st.text_input("パスワード", type="password")
-        if st.form_submit_button("ログイン", use_container_width=True):
+    st.title("賞味期限管理システム")
+    
+    with st.form("login_form"):
+        u_id = st.text_input("ID (数字4桁)", value="9999", max_chars=4)
+        u_pw = st.text_input("パスワード", value="admin", type="password")
+        submit = st.form_submit_button("ログイン", use_container_width=True)
+        
+        if submit:
+            # 最新のユーザーマスタを取得
             users = load_data("user_master")
-            # 型変換を行い確実に比較
-            user_row = users[(users['id'].astype(str) == str(u_id)) & (users['password'].astype(str) == str(u_pw))]
-            if not user_row.empty:
-                st.session_state.update({'logged_in': True, 'role': user_row.iloc[0]['role'], 'user_info': user_row.iloc[0]})
-                st.rerun()
+            
+            if not users.empty:
+                # デバッグ表示（成功したら後で消します）
+                # st.write("システムが読み取ったデータ:", users) 
+                
+                # すべての列名と値を文字列にして、空白を除去して比較
+                users.columns = [c.strip() for c in users.columns]
+                
+                # 行ごとの照合
+                match = False
+                for i, row in users.iterrows():
+                    if str(row['id']).strip() == str(u_id).strip() and \
+                       str(row['password']).strip() == str(u_pw).strip():
+                        st.session_state.update({
+                            'logged_in': True, 
+                            'role': row['role'], 
+                            'user_info': row.to_dict()
+                        })
+                        match = True
+                        break
+                
+                if match:
+                    st.rerun()
+                else:
+                    st.error("IDまたはパスワードが一致しません。")
             else:
-                st.error("IDまたはパスワードが不正です")
+                st.error("user_master シートからデータが読み取れませんでした。")
     st.stop()
 
-# --- 5. メインメニュー（ログイン後） ---
+# --- 4. メインメニュー（ログイン後） ---
 role = st.session_state['role']
 info = st.session_state['user_info']
 st.sidebar.title(f"【{role}】")
@@ -112,7 +116,7 @@ if st.sidebar.button("ログアウト"):
     st.session_state.update({'logged_in': False, 'role': None})
     st.rerun()
 
-# --- A. 管理者ページ（マスター・支部共通） ---
+# --- A. 管理者ページ ---
 if role in ["マスター", "支部"]:
     st.title("⚙️ 管理者ページ")
     tabs_list = ["アイテム管理", "店舗管理", "集計・警告"]
@@ -120,7 +124,6 @@ if role in ["マスター", "支部"]:
     selected_tabs = st.tabs(tabs_list)
     offset = 1 if role == "マスター" else 0
 
-    # 支部・管轄者登録（マスターのみ）
     if role == "マスター":
         with selected_tabs[0]:
             st.subheader("支部IDおよび管轄責任者の登録")
@@ -137,9 +140,95 @@ if role in ["マスター", "支部"]:
                     save_data(pd.concat([br_df, pd.DataFrame([{"branch_id":b_id, "branch_name":b_name}])]), "branch_master")
                     st.success("支部情報を登録しました")
 
-    # アイテム管理
     with selected_tabs[offset]:
         st.subheader("アイテム管理")
         with st.expander("➕ 新規アイテム追加"):
             c1, c2, c3 = st.columns(3)
-            i_cat = c1.selectbox("カテゴリ", ["冷蔵食材", "冷凍食材", "常温食材", "ドリンク", "ピック
+            i_cat = c1.selectbox("カテゴリ", ["冷蔵食材", "冷凍食材", "常温食材", "ドリンク", "ピックアップ"])
+            i_name = c2.text_input("アイテム名")
+            i_type = c3.radio("日付形式", ["年月日", "年月のみ"])
+            if st.button("アイテムを保存"):
+                idf = load_data("item_master")
+                new_i = pd.DataFrame([{"item_id": len(idf)+1, "category": i_cat, "item_name": i_name, "input_type": i_type}])
+                save_data(pd.concat([idf, new_i]), "item_master")
+                st.rerun()
+        st.dataframe(load_data("item_master"), use_container_width=True)
+
+    with selected_tabs[offset+1]:
+        st.subheader("管轄店舗の管理")
+        with st.expander("➕ 新規店舗追加"):
+            b_list = load_data("branch_master")
+            act_b = st.selectbox("担当支部", b_list["branch_id"].tolist()) if not b_list.empty else "なし"
+            c1, c2, c3 = st.columns(3)
+            s_id = c1.text_input("店舗ID(4桁)", max_chars=4)
+            s_name = c2.text_input("店舗名")
+            s_pw = c3.text_input("初期PW")
+            if st.button("店舗を登録"):
+                u_df = load_data("user_master")
+                new_u = pd.DataFrame([{"id": s_id, "password": s_pw, "role":"店舗", "target_id": s_name, "name": s_name}])
+                save_data(pd.concat([u_df, new_u]), "user_master")
+                s_df = load_data("shop_master")
+                new_s = pd.DataFrame([{"shop_id": s_id, "branch_id": act_b, "shop_name": s_name}])
+                save_data(pd.concat([s_df, new_s]), "shop_master")
+                st.success("店舗を登録しました")
+
+    with selected_tabs[offset+2]:
+        st.subheader("📊 期限アラート一覧")
+        recs = load_data("expiry_records")
+        if not recs.empty:
+            recs['dt'] = pd.to_datetime(recs['expiry_date']).dt.date
+            today = date.today()
+            for _, r in recs.sort_values('expiry_date').iterrows():
+                diff = (r['dt'] - today).days
+                msg = f"{r['shop_id']} | {r['item_name']} ({r['expiry_date']})"
+                if diff <= 0: st.error(f"🚨 【期限切れ】 {msg}")
+                elif diff <= 7: st.warning(f"⚠️ 【1週間以内】 {msg}")
+                elif diff <= 30: st.success(f"✅ 【1か月以内】 {msg}")
+
+# B. 店舗用入力画面
+else:
+    st.title(f"📦 {info['name']}")
+    items = load_data("item_master")
+    final_data = {}
+    
+    if items.empty:
+        st.warning("アイテムが未登録です。")
+    else:
+        for cat in items["category"].unique():
+            st.markdown(f"### 📍 {cat}")
+            for _, row in items[items["category"] == cat].iterrows():
+                with st.container(border=True):
+                    st.write(f"**{row['item_name']}**")
+                    ph = "20251231" if row['input_type']=="年月日" else "202512"
+                    val_str = st.text_input(f"{row['input_type']}を入力", key=f"inp_{row['item_id']}", placeholder=ph)
+                    if val_str:
+                        valid, res = validate_input(val_str, row['input_type'])
+                        if valid:
+                            final_data[row['item_id']] = {"cat": row['category'], "name": row['item_name'], "date": res}
+                            st.caption(f"✅ 登録予定: {res}")
+                        else:
+                            st.error(res)
+
+        if st.button("一括登録を確定する", type="primary", use_container_width=True):
+            if final_data:
+                df = load_data("expiry_records")
+                shops_m = load_data("shop_master")
+                try:
+                    branch_id = shops_m[shops_m["shop_id"].astype(str) == str(info['id'])]["branch_id"].values[0]
+                except:
+                    branch_id = "UNKNOWN"
+                
+                new_list = []
+                for k, v in final_data.items():
+                    new_list.append({
+                        "id": str(datetime.now().strftime('%Y%m%d%H%M%S')) + str(k),
+                        "shop_id": info['name'],
+                        "branch_id": branch_id,
+                        "category": v["cat"],
+                        "item_name": v["name"],
+                        "expiry_date": str(v["date"]),
+                        "input_date": str(date.today())
+                    })
+                save_data(pd.concat([df, pd.DataFrame(new_list)]), "expiry_records")
+                st.success("一括登録完了！")
+                st.balloons()
