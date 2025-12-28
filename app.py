@@ -106,7 +106,7 @@ if st.sidebar.button("ログアウト"):
 
 # --- 6. 各機能の実装 ---
 
-# --- 【全権限】期限確認・編集 ---
+# --- 【共通】期限確認・編集 ---
 if "期限" in menu:
     st.header(f"🔍 {menu}")
     df = load_data("expiry_records")
@@ -122,7 +122,6 @@ if "期限" in menu:
 
     if not df.empty:
         st.subheader("📋 登録済みデータ（行ごとに操作）")
-        # ヘッダー
         h1, h2, h3, h4, h5 = st.columns([1, 2, 2, 1, 1])
         h1.caption("店舗")
         h2.caption("商品名")
@@ -148,7 +147,7 @@ if "期限" in menu:
     else:
         st.info("データがありません。")
 
-# --- 【支部】店舗管理（行別編集・削除） ---
+# --- 【支部】店舗管理（支部名・PWも編集可能） ---
 elif menu == "店舗管理":
     st.header("🏪 店舗マスタ管理")
     s_all = load_data("shop_master")
@@ -169,45 +168,74 @@ elif menu == "店舗管理":
                 save_data(pd.concat([s_all, ns]), "shop_master")
                 st.success("登録完了"); st.rerun()
 
-    st.subheader("📋 店舗一覧・行別編集")
+    st.subheader("📋 店舗一覧・一括編集")
     if not my_s_list.empty:
         mgrs = u_all[u_all["role"] == "管轄者"]
         mgr_names = ["未割当"] + mgrs["name"].tolist()
-        br_names = b_all["branch_name"].tolist()
+        # 支部名リストを取得（IDと名前の対応表）
+        branch_map = b_all.set_index("branch_id")["branch_name"].to_dict()
+        branch_names = b_all["branch_name"].tolist()
 
-        h1, h2, h3, h4, h5 = st.columns([1, 2, 2, 1, 1])
+        # ヘッダー比率調整
+        h1, h2, h3, h4, h5, h6, h7 = st.columns([0.8, 1.2, 1.2, 1, 1.2, 0.8, 0.8])
         h1.caption("店舗ID")
         h2.caption("店舗名")
-        h3.caption("担当管轄者")
+        h3.caption("支部名")
+        h4.caption("PW")
+        h5.caption("管轄者")
 
         for idx, row in my_s_list.iterrows():
             with st.container():
-                c1, c2, c3, c4, c5 = st.columns([1, 2, 2, 1, 1])
+                c1, c2, c3, c4, c5, c6, c7 = st.columns([0.8, 1.2, 1.2, 1, 1.2, 0.8, 0.8])
+                
+                # 1. 店舗ID
                 e_sid = c1.text_input("ID", row["shop_id"], key=f"s_id_{idx}", label_visibility="collapsed")
+                # 2. 店舗名
                 e_snm = c2.text_input("店名", row["shop_name"], key=f"s_nm_{idx}", label_visibility="collapsed")
                 
+                # 3. 支部名選択 (現在の支部をデフォルト)
+                current_b_name = branch_map.get(row["branch_id"], "不明")
+                def_b_idx = branch_names.index(current_b_name) if current_b_name in branch_names else 0
+                e_bnm = c3.selectbox("支部", branch_names, index=def_b_idx, key=f"s_bn_{idx}", label_visibility="collapsed")
+                
+                # 4. パスワード編集
+                # user_masterから現在のPWを取得
+                u_row = u_all[u_all["id"] == row["shop_id"]]
+                curr_pw = u_row.iloc[0]["password"] if not u_row.empty else ""
+                e_pw = c4.text_input("PW", curr_pw, key=f"s_pw_{idx}", label_visibility="collapsed")
+                
+                # 5. 管轄者選択
                 curr_mgr = mgrs[mgrs["target_id"].str.contains(row["shop_name"], na=False)]
                 def_m_idx = mgr_names.index(curr_mgr.iloc[0]["name"]) if not curr_mgr.empty else 0
-                e_mgr = c3.selectbox("管轄者", mgr_names, index=def_m_idx, key=f"s_mg_{idx}", label_visibility="collapsed")
+                e_mgr = c5.selectbox("管轄者", mgr_names, index=def_m_idx, key=f"s_mg_{idx}", label_visibility="collapsed")
 
-                if c4.button("更新", key=f"s_up_{idx}"):
-                    s_all.at[idx, ["shop_id", "shop_name"]] = [e_sid, e_snm]
-                    u_all.loc[u_all["id"] == row["shop_id"], ["id", "target_id", "name"]] = [e_sid, e_snm, e_snm]
+                # 更新ボタン
+                if c6.button("更新", key=f"s_up_{idx}"):
+                    # 支部名から逆引きしてIDを取得
+                    new_b_id = b_all[b_all["branch_name"] == e_bnm].iloc[0]["branch_id"]
+                    
+                    s_all.at[idx, ["shop_id", "shop_name", "branch_id"]] = [e_sid, e_snm, new_b_id]
+                    # ユーザーマスタ更新（PWも含む）
+                    u_all.loc[u_all["id"] == row["shop_id"], ["id", "password", "target_id", "name"]] = [e_sid, e_pw, e_snm, e_snm]
+                    
+                    # 管轄者紐付け更新
                     if e_mgr != "未割当":
                         u_all["target_id"] = u_all["target_id"].str.replace(row["shop_name"], "").str.replace(",,", ",").str.strip(",")
                         m_idx = u_all[u_all["name"] == e_mgr].index[0]
                         u_all.at[m_idx, "target_id"] = f"{u_all.at[m_idx, 'target_id']},{e_snm}".strip(",")
+                    
                     save_data(s_all, "shop_master"); save_data(u_all, "user_master")
                     st.success("更新しました"); st.rerun()
                 
-                if c5.button("削除", key=f"s_de_{idx}"):
+                # 削除ボタン
+                if c7.button("削除", key=f"s_de_{idx}"):
                     save_data(s_all.drop(idx), "shop_master")
                     save_data(u_all[u_all["id"] != row["shop_id"]], "user_master")
                     st.warning("削除しました"); st.rerun()
     else:
         st.info("店舗がありません。")
 
-# --- 【店舗】エクセル発行（翌月1日〜翌々月1週目） ---
+# --- 【店舗】エクセル発行 ---
 elif menu == "エクセル発行":
     st.header("📊 エクセルレポート発行")
     df = load_data("expiry_records")
@@ -246,7 +274,6 @@ elif menu == "期限入力":
         if st.button("一括登録を確定", type="primary", use_container_width=True):
             if final_data:
                 df = load_data("expiry_records")
-                # 支部ID特定
                 s_master = load_data("shop_master")
                 b_id = s_master[s_master["shop_name"] == info['name']]["branch_id"].values[0]
                 new_recs = []
@@ -266,11 +293,23 @@ elif menu == "パスワード変更":
             save_data(u_df, "user_master")
             st.success("パスワードを更新しました。")
 
-# --- 【マスター/支部】管轄者・アイテム管理 ---
+# --- 【マスター/支部】管轄者・アイテム管理・支部登録 ---
 elif menu in ["管轄者管理", "アイテム管理", "支部登録"]:
     st.header(f"⚙️ {menu}")
-    # アイテム管理の行別編集
-    if menu == "アイテム管理":
+    if menu == "支部登録":
+        b_all = load_data("branch_master")
+        u_all = load_data("user_master")
+        with st.form("reg_b"):
+            bid, bnm, bpw = st.columns(3)
+            b_id = bid.text_input("支部ID(4桁)")
+            b_name = bnm.text_input("支部名")
+            b_pw = bpw.text_input("PW")
+            if st.form_submit_button("登録"):
+                save_data(pd.concat([u_all, pd.DataFrame([{"id":b_id, "password":b_pw, "role":"支部", "target_id":b_id, "name":b_name}])]), "user_master")
+                save_data(pd.concat([b_all, pd.DataFrame([{"branch_id":b_id, "branch_name":b_name}])]), "branch_master")
+                st.success("登録完了"); st.rerun()
+    
+    elif menu == "アイテム管理":
         i_all = load_data("item_master")
         with st.expander("➕ 新規アイテム追加"):
             with st.form("reg_i"):
@@ -292,3 +331,27 @@ elif menu in ["管轄者管理", "アイテム管理", "支部登録"]:
                 save_data(i_all, "item_master"); st.rerun()
             if c4.button("削除", key=f"i_de_{idx}"):
                 save_data(i_all.drop(idx), "item_master"); st.rerun()
+
+    elif menu == "管轄者管理":
+        u_all = load_data("user_master")
+        s_all = load_data("shop_master")
+        my_shops = s_all[s_all["branch_id"] == info["id"]]
+        with st.expander("➕ 新規管轄者登録"):
+            with st.form("reg_mgr"):
+                m_id = st.text_input("管轄者ID(4桁)", max_chars=4)
+                m_name = st.text_input("管轄者名")
+                m_pw = st.text_input("パスワード")
+                sels = st.multiselect("担当店舗を選択", my_shops["shop_name"].tolist())
+                if st.form_submit_button("登録"):
+                    new_u = pd.DataFrame([{"id": m_id, "password": m_pw, "role":"管轄者", "target_id": ",".join(sels), "name": m_name}])
+                    save_data(pd.concat([u_all, new_u]), "user_master")
+                    st.success("登録完了"); st.rerun()
+        m_list = u_all[u_all["role"] == "管轄者"]
+        if not m_list.empty:
+            for idx, row in m_list.iterrows():
+                c1, c2, c3, c4 = st.columns([1, 1, 2, 1])
+                c1.write(row["id"])
+                c2.write(row["name"])
+                c3.write(row["target_id"])
+                if c4.button("削除", key=f"m_de_{idx}"):
+                    save_data(u_all.drop(idx), "user_master"); st.rerun()
