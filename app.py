@@ -178,7 +178,7 @@ elif menu == "店舗管理":
         # --- 列幅の比率を調整（支部名と管轄者を広く、ボタンを狭く） ---
         # 旧: [0.8, 1.2, 1.2, 1, 1.2, 0.8, 0.8]
         # 新: [0.6, 1.1, 1.5, 0.7, 1.5, 0.5, 0.5]
-        col_ratios = [0.6, 1.1, 1.5, 0.7, 1.5, 0.5, 0.5]
+        col_ratios = [0.7, 1.1, 1.5, 0.7, 1.5, 0.5, 0.5]
         
         h1, h2, h3, h4, h5, h6, h7 = st.columns(col_ratios)
         h1.caption("ID")
@@ -355,4 +355,5 @@ elif menu in ["管轄者管理", "アイテム管理", "支部登録"]:
                 c3.write(row["target_id"])
                 if c4.button("削除", key=f"m_de_{idx}"):
                     save_data(u_all.drop(idx), "user_master"); st.rerun()
+
 
