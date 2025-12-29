@@ -147,7 +147,7 @@ if "期限" in menu:
     else:
         st.info("データがありません。")
 
-# --- 【支部】店舗管理（支部名・PWも編集可能） ---
+# --- 【支部】店舗管理（レイアウト最適化版） ---
 elif menu == "店舗管理":
     st.header("🏪 店舗マスタ管理")
     s_all = load_data("shop_master")
@@ -172,34 +172,38 @@ elif menu == "店舗管理":
     if not my_s_list.empty:
         mgrs = u_all[u_all["role"] == "管轄者"]
         mgr_names = ["未割当"] + mgrs["name"].tolist()
-        # 支部名リストを取得（IDと名前の対応表）
         branch_map = b_all.set_index("branch_id")["branch_name"].to_dict()
         branch_names = b_all["branch_name"].tolist()
 
-        # ヘッダー比率調整
-        h1, h2, h3, h4, h5, h6, h7 = st.columns([0.8, 1.2, 1.2, 1, 1.2, 0.8, 0.8])
-        h1.caption("店舗ID")
+        # --- 列幅の比率を調整（支部名と管轄者を広く、ボタンを狭く） ---
+        # 旧: [0.8, 1.2, 1.2, 1, 1.2, 0.8, 0.8]
+        # 新: [0.6, 1.1, 1.5, 0.7, 1.5, 0.5, 0.5]
+        col_ratios = [0.6, 1.1, 1.5, 0.7, 1.5, 0.5, 0.5]
+        
+        h1, h2, h3, h4, h5, h6, h7 = st.columns(col_ratios)
+        h1.caption("ID")
         h2.caption("店舗名")
         h3.caption("支部名")
         h4.caption("PW")
         h5.caption("管轄者")
+        h6.write("") # 更新
+        h7.write("") # 削除
 
         for idx, row in my_s_list.iterrows():
             with st.container():
-                c1, c2, c3, c4, c5, c6, c7 = st.columns([0.8, 1.2, 1.2, 1, 1.2, 0.8, 0.8])
+                c1, c2, c3, c4, c5, c6, c7 = st.columns(col_ratios)
                 
                 # 1. 店舗ID
                 e_sid = c1.text_input("ID", row["shop_id"], key=f"s_id_{idx}", label_visibility="collapsed")
                 # 2. 店舗名
                 e_snm = c2.text_input("店名", row["shop_name"], key=f"s_nm_{idx}", label_visibility="collapsed")
                 
-                # 3. 支部名選択 (現在の支部をデフォルト)
+                # 3. 支部名選択
                 current_b_name = branch_map.get(row["branch_id"], "不明")
                 def_b_idx = branch_names.index(current_b_name) if current_b_name in branch_names else 0
                 e_bnm = c3.selectbox("支部", branch_names, index=def_b_idx, key=f"s_bn_{idx}", label_visibility="collapsed")
                 
-                # 4. パスワード編集
-                # user_masterから現在のPWを取得
+                # 4. パスワード
                 u_row = u_all[u_all["id"] == row["shop_id"]]
                 curr_pw = u_row.iloc[0]["password"] if not u_row.empty else ""
                 e_pw = c4.text_input("PW", curr_pw, key=f"s_pw_{idx}", label_visibility="collapsed")
@@ -209,16 +213,12 @@ elif menu == "店舗管理":
                 def_m_idx = mgr_names.index(curr_mgr.iloc[0]["name"]) if not curr_mgr.empty else 0
                 e_mgr = c5.selectbox("管轄者", mgr_names, index=def_m_idx, key=f"s_mg_{idx}", label_visibility="collapsed")
 
-                # 更新ボタン
-                if c6.button("更新", key=f"s_up_{idx}"):
-                    # 支部名から逆引きしてIDを取得
+                # 6. 更新ボタン（アイコン化して省スペース）
+                if c6.button("🆙", key=f"s_up_{idx}", help="更新"):
                     new_b_id = b_all[b_all["branch_name"] == e_bnm].iloc[0]["branch_id"]
-                    
                     s_all.at[idx, ["shop_id", "shop_name", "branch_id"]] = [e_sid, e_snm, new_b_id]
-                    # ユーザーマスタ更新（PWも含む）
                     u_all.loc[u_all["id"] == row["shop_id"], ["id", "password", "target_id", "name"]] = [e_sid, e_pw, e_snm, e_snm]
                     
-                    # 管轄者紐付け更新
                     if e_mgr != "未割当":
                         u_all["target_id"] = u_all["target_id"].str.replace(row["shop_name"], "").str.replace(",,", ",").str.strip(",")
                         m_idx = u_all[u_all["name"] == e_mgr].index[0]
@@ -227,8 +227,8 @@ elif menu == "店舗管理":
                     save_data(s_all, "shop_master"); save_data(u_all, "user_master")
                     st.success("更新しました"); st.rerun()
                 
-                # 削除ボタン
-                if c7.button("削除", key=f"s_de_{idx}"):
+                # 7. 削除ボタン（アイコン化して省スペース）
+                if c7.button("🗑️", key=f"s_de_{idx}", help="削除"):
                     save_data(s_all.drop(idx), "shop_master")
                     save_data(u_all[u_all["id"] != row["shop_id"]], "user_master")
                     st.warning("削除しました"); st.rerun()
@@ -355,3 +355,4 @@ elif menu in ["管轄者管理", "アイテム管理", "支部登録"]:
                 c3.write(row["target_id"])
                 if c4.button("削除", key=f"m_de_{idx}"):
                     save_data(u_all.drop(idx), "user_master"); st.rerun()
+
