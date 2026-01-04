@@ -189,7 +189,6 @@ if st.sidebar.button("ログアウト"):
     st.session_state.update({'logged_in': False, 'role': None})
     st.rerun()
 
-# --- ★追加：サイドバー最下段に「更新」ボタン ---
 with st.sidebar.container():
     st.markdown('<div class="sidebar-footer">', unsafe_allow_html=True)
 
@@ -200,9 +199,11 @@ with st.sidebar.container():
         else:
             st.info(msg)
 
-           st.rerun()
+        # キャッシュクリアはしない（これが原因でAPIErrorを誘発しやすい）
+        st.rerun()
 
     st.markdown("</div>", unsafe_allow_html=True)
+
 
 
 # --- 6. 各機能の実装 ---
@@ -443,4 +444,5 @@ elif menu in ["管轄者管理", "アイテム管理", "支部登録"]:
                 if c[3].button("🗑️", key=f"m_de_{idx}"):
                     save_data(u_all.drop(idx), "user_master")
                     st.rerun()
+
 
