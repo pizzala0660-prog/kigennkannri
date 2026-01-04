@@ -193,22 +193,17 @@ if st.sidebar.button("ログアウト"):
 with st.sidebar.container():
     st.markdown('<div class="sidebar-footer">', unsafe_allow_html=True)
 
-    if st.button("🔄 更新（DB同期/再読込）", use_container_width=True):
-        # 1) DBがあれば同期（secretsにdb_spreadsheet_idがある場合だけ）
+    if st.button("更新", use_container_width=True):
         ok, msg = sync_from_database_sheet()
         if ok:
             st.success(msg)
         else:
             st.info(msg)
 
-        # 2) キャッシュをクリアして必ず最新を取り直す
-        st.cache_data.clear()
-        st.cache_resource.clear()
-
-        # 3) 再実行
-        st.rerun()
+           st.rerun()
 
     st.markdown("</div>", unsafe_allow_html=True)
+
 
 # --- 6. 各機能の実装 ---
 
@@ -448,3 +443,4 @@ elif menu in ["管轄者管理", "アイテム管理", "支部登録"]:
                 if c[3].button("🗑️", key=f"m_de_{idx}"):
                     save_data(u_all.drop(idx), "user_master")
                     st.rerun()
+
